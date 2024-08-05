@@ -11,12 +11,12 @@ def GetLatestVersion():
 
 def DownloadLatestVersion(latestVersion):
     print("New version detected, downloading latest version: ", latestVersion)
-    return_code = os.system(RCL_UPDATER)
-    if return_code == 0:
-        print("Updating RCL")
-    else:
-        print(f"Updating failed: {return_code}.")
-    
+    os.rename("RCLUpdater.bat", "RCLUpdater_old.bat")
+    return_code = os.system("start " + RCL_UPDATER)
+    os._exit(0)
+
+def SetTextColor(text, color):
+    return color + text + COLORS[0]
 
 def initialSetup():
     global rustPath
@@ -27,8 +27,9 @@ def initialSetup():
             rustPath = lines[0].strip()
             if (CURRENT_VERSION != latestVersion):
                 DownloadLatestVersion(latestVersion)
-                time.sleep(2)
-                os._exit(0)
+            else:
+                if (os.path.isfile(RCL_UPDATER)):
+                    os.remove(RCL_UPDATER)
     else:
         print('Enter this command into Rust console: bind z "client.consoletoggle;combatlog;client.consoletoggle;"')
         while True:
@@ -44,9 +45,17 @@ def initialSetup():
                 print("The specified path does not contain Rust.exe. Please try again.")
 
 
-    os.system('mode con: cols=47 lines=55')  
+    os.system('mode con: cols=82 lines=55')  
     
-
+def PrintLogo():
+    print('                          \033[31m8888888b.   .d8888b.  888     \033[37m') 
+    print('                          \033[31m888   Y88b d88P  Y88b 888     \033[37m') 
+    print('                          \033[31m888    888 888    888 888     \033[37m') 
+    print('                          \033[31m888   d88P 888        888     \033[37m') 
+    print('                          \033[31m8888888P"  888        888     \033[37m') 
+    print('                          \033[31m888 T88b   888    888 888     \033[37m') 
+    print('                          \033[31m888  T88b  Y88b  d88P 888     \033[37m') 
+    print('                          \033[31m888   T88b  "Y8888P"  88888888\033[37m') 
 
 
 def on_key_event(e):
@@ -58,8 +67,6 @@ def on_key_event(e):
             lastPressedTime = currentTime
             os.system('cls')  # Clear the console
             
-            print("Press 'Z' to refresh combatlog")
-
             # Clear recentLines at the start of each refresh
             recentLines = []
             logPath = os.path.join(rustPath, 'output_log.txt')
@@ -75,12 +82,19 @@ def on_key_event(e):
                                         try:
                                             damage = round(float(columns[i+2]) - float(columns[i+3]), 1)
                                             health = columns[i+3]
+                                            playerID = columns[4]
+                                            bodyPart = columns[i]
+                                            distance = columns[i+1]
                                             if i + 4 < len(columns):
                                                 if columns[i+4] in killStates:
                                                     killState = columns[i+4]
                                                 else:
                                                     killState = ""
-                                            recentLines.append((health, damage, killState))
+                                            if (damage < 0):
+                                                killState = "wounded"
+                                            if (killState == "you"):
+                                                killState == "You died first"
+                                            recentLines.append((health, damage, bodyPart, distance, killState, playerID))
                                         except ValueError:
                                             recentLines.append(("Error", "Error", ""))
                                     break
@@ -98,30 +112,52 @@ def on_key_event(e):
             # Get the last 10 entries and reverse them
             lastRows = recentLines[-50:]
             reversedLastRows = list(reversed(lastRows))
-            
-            # Print the formatted table
-            print(f"{'Health':<15} {'Damage':<15} {'Info':<15}")
-            print("="*45)
 
+            # Assign colors to each player
+            playerColorMap = {}
+            colorIndex = 0
+            for _, _, _, _, _, playerID in reversedLastRows:
+                if playerID not in playerColorMap:
+                    if colorIndex < len(COLORS):
+                        playerColorMap[playerID] = COLORS[colorIndex]
+                        colorIndex += 1
+                    else:
+                        playerColorMap[playerID] = COLORS[0]
+
+            print()
+            PrintLogo()
+            print()
+            print("                              Z - Refresh CombatLog")
+            print(f"   {'Health':<15} {'Damage':<15} {'Distance':<15} {'BodyPart':<15} {'Info':<15}")
+            print("="*78)
+
+            # Print table contents
             if (hiddenEventAmount > 1):
                 print(f"+ {hiddenEventAmount} events in the last 10 seconds")
                 hiddenEventAmount == 0
             elif (hiddenEventAmount == 1):
                 print(f"+ {hiddenEventAmount} event in the last 10 seconds")
                 hiddenEventAmount == 0
-
-            for health, damage, killState in reversedLastRows:
-                print(f"{health:<15} {damage:<15} {killState:<15}")
+            
+            for health, damage, bodyPart, distance, killState, playerID in reversedLastRows:
+                color = playerColorMap.get(playerID)
+                square = SetTextColor("██", color)
+                if (bodyPart == "head"):
+                    bodyPart = SetTextColor(bodyPart + "           ", "\033[31m")
+                print(f"{square} {health:<15} {damage:<15} {distance:<15} {bodyPart:<15} {killState:<15}")
 
 # Set the console title
 os.system('title RustCombatLogger')
 
-logIdentifyingKeywords = {"chest", "arm", "head", "leg", "hand", "generic", "stomach"}
-killStates = {"killed", "wounded", "projectile_los"}
+# WHITE, RED, YELLOW, GREEN, BLUE, CYAN, MAGENTA
+#COLORS = ["\033[37m", "\033[31m", "\033[33m", "\033[32m", "\033[34m", "\033[36m", "\033[35m"]
+COLORS = ["\033[37m", "\033[31m", "\033[33m", "\033[32m", "\033[34m", "\033[36m", "\033[35m"]
+logIdentifyingKeywords = {"chest", "arm", "head", "leg", "hand", "generic", "stomach", "foot"}
+killStates = {"killed", "wounded", "projectile_los", "you"}
 
 COOLDOWN_TIME = 0.5
-CURRENT_VERSION = "1.0"
-RCL_UPDATER = os.path.join(os.getenv('APPDATA'), 'RustCombatLogger', 'RCLUpdater.bat')
+CURRENT_VERSION = "1.8"
+RCL_UPDATER = os.path.join(os.getenv('APPDATA'), 'RustCombatLogger', 'RCLUpdater_old.bat')
 lastPressedTime = 0
 
 keyboard.hook(on_key_event)
@@ -132,7 +168,13 @@ os.makedirs(os.path.dirname(saveDataFile), exist_ok=True)
 
 initialSetup()
 
-print("Press 'Z' to show combatlog")
+print()
+PrintLogo()
+print()
+print("                              Z - Refresh CombatLog")
+print(f"   {'Health':<15} {'Damage':<15} {'Distance':<15} {'BodyPart':<15} {'Info':<15}")
+print("="*78)
+
+
 while True:
     keyboard.wait('z') 
-
