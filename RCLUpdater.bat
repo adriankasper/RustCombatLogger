@@ -1,5 +1,6 @@
 @echo off
 setlocal
+title RCLUpdater
 
 :: Define variables
 set "url=https://github.com/adriankasper/RustCombatLogger/releases/latest/download/RustCombatLogger.zip"
@@ -54,3 +55,4 @@ echo Insallation done!
 start "" "%installDir%\RustCombatLogger\RustCombatLogger.exe"
 
 endlocal
+exit
