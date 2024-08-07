@@ -7,7 +7,7 @@ External combatlog for Rust
 2) Extract RustCombatLogger.zip
 3) Launch RCLUpdater.bat
 4) Delete the exctracted folder
-5) Enter `bind z "client.consoletoggle;combatlog;client.consoletoggle;"` into rust console
+5) Enter `bind z "client.consoletoggle;combatlog;client.consoletoggle;"` into Rust console
 
 ## Uninstall
 1) Close all instances of RustCombatLogger
