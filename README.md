@@ -15,5 +15,9 @@ External combatlog for Rust
 3) Type %appdata%
 4) Delete folder RustCombatLogger
 
+#### How does this work?
+Rust saves all console output into output_log.txt, this program reads this file and formats all shots you hit into a quickly readable table.
+NB! RustCombatLogger does not modify Rust by reading a txt file, meaning this is not detectable by EAC.
+
 #### Why is antivirus blocking the program?
 This program uses Pyinstaller to package a python script into an exe file, so users do not need to have Python and other requirements installed on their system. Pyinstaller is also used by malware developers to hide malicious code, so antivirus programs detect programs made with Pyinstaller as malicious. RustCombatLogger however is open source, so everyone can see the source code containing no malicious parts.
