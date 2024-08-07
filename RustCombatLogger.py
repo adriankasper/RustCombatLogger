@@ -2,6 +2,7 @@ import keyboard
 import time
 import os
 import requests
+import time
 
 def GetLatestVersion():
     url = 'https://github.com/adriankasper/RustCombatLogger/releases/latest'
@@ -11,11 +12,12 @@ def GetLatestVersion():
 
 def DownloadLatestVersion(latestVersion):
     print("New version detected, downloading latest version: ", latestVersion)
-    os.rename("RCLUpdater.bat", "RCLUpdater_old.bat")
-    return_code = os.system("start " + RCL_UPDATER)
+    time.sleep(2)
+    os.rename(os.path.join(SRC_PATH, 'RCLUpdater.bat'), os.path.join(SRC_PATH, 'RCLUpdater_old.bat'))
+    return_code = os.system(f'powershell -Command "start {RCL_UPDATER} -Verb RunAs"')
     os._exit(0)
 
-def SetTextColor(text, color):
+def SetTextColor(text, color,):
     return color + text + COLORS[0]
 
 def initialSetup():
@@ -45,18 +47,49 @@ def initialSetup():
                 print("The specified path does not contain Rust.exe. Please try again.")
 
 
-    os.system('mode con: cols=82 lines=55')  
+    os.system(f'mode con: cols={WINDOW_WIDTH} lines={WINDOW_HEIGHT}')  
     
-def PrintLogo():
-    print('                          \033[31m8888888b.   .d8888b.  888     \033[37m') 
-    print('                          \033[31m888   Y88b d88P  Y88b 888     \033[37m') 
-    print('                          \033[31m888    888 888    888 888     \033[37m') 
-    print('                          \033[31m888   d88P 888        888     \033[37m') 
-    print('                          \033[31m8888888P"  888        888     \033[37m') 
-    print('                          \033[31m888 T88b   888    888 888     \033[37m') 
-    print('                          \033[31m888  T88b  Y88b  d88P 888     \033[37m') 
-    print('                          \033[31m888   T88b  "Y8888P"  88888888\033[37m') 
+def PrintHeading():
+    print("v" + CURRENT_VERSION)
+    print((" "*((WINDOW_WIDTH-30)//2)) + '\033[31m8888888b.   .d8888b.  888     \033[37m') 
+    print((" "*((WINDOW_WIDTH-30)//2)) + '\033[31m888   Y88b d88P  Y88b 888     \033[37m') 
+    print((" "*((WINDOW_WIDTH-30)//2)) + '\033[31m888    888 888    888 888     \033[37m') 
+    print((" "*((WINDOW_WIDTH-30)//2)) + '\033[31m888   d88P 888        888     \033[37m') 
+    print((" "*((WINDOW_WIDTH-30)//2)) + '\033[31m8888888P"  888        888     \033[37m') 
+    print((" "*((WINDOW_WIDTH-30)//2)) + '\033[31m888 T88b   888    888 888     \033[37m') 
+    print((" "*((WINDOW_WIDTH-30)//2)) + '\033[31m888  T88b  Y88b  d88P 888     \033[37m') 
+    print((" "*((WINDOW_WIDTH-30)//2)) + '\033[31m888   T88b  "Y8888P"  88888888\033[37m') 
+    print()
+    print((" "*((WINDOW_WIDTH-21)//2)) + "Z - Refresh CombatLog")
+    print(f"   {'Health':<15} {'Damage':<15} {'Distance':<15} {'BodyPart':<15} {'Info':<15}")
+    print("="*WINDOW_WIDTH)
 
+def MapPlayerIDToColors(playerID):
+    global playerColor1, playerColor2
+
+    if playerID not in playerColorMap:
+        colorIndex1, colorIndex2 = GetNextColorPairIDs()
+        # Map two colors (they can be the same)
+        color1 = COLORS[colorIndex1]
+        color2 = COLORS[colorIndex2]
+
+        # Store color mapping
+        playerColorMap[playerID] = (color1, color2)
+        return playerColor1, playerColor2
+    
+def GetNextColorPairIDs():
+    #Generate the next color pair in base-7-like sequence
+    usedPairs = set(playerColorMap.values())
+    for i in range(7):
+        if (COLORS[i], COLORS[i]) not in usedPairs:
+            return (i, i)
+    for i in range(len(COLORS)):
+        for j in range(len(COLORS)):
+            colorPair = (i, j)
+            if (COLORS[i], COLORS[j]) not in usedPairs:
+                return colorPair
+    #If none left, return (0,0)
+    return (0,0)
 
 def on_key_event(e):
     global lastPressedTime
@@ -65,6 +98,7 @@ def on_key_event(e):
     if e.name == 'z':  
         if currentTime - lastPressedTime >= COOLDOWN_TIME:
             lastPressedTime = currentTime
+            time.sleep(0.1)
             os.system('cls')  # Clear the console
             
             # Clear recentLines at the start of each refresh
@@ -77,14 +111,16 @@ def on_key_event(e):
                         columns = line.split()
                         if len(columns) > 1 and columns[1] == "you" and columns[3] == "player" and 'assets/prefabs/weapons/' in line:
                             for i, element in enumerate(columns):
-                                if any(keyword in element for keyword in logIdentifyingKeywords):
+                                if element in logIdentifyingKeywords:
                                     if i + 3 < len(columns):
                                         try:
-                                            damage = round(float(columns[i+2]) - float(columns[i+3]), 1)
                                             health = columns[i+3]
-                                            playerID = columns[4]
+                                            damage = round(float(columns[i+2]) - float(columns[i+3]), 1)
+                                            if damage < 0:
+                                                damage = float(columns[i+2])
                                             bodyPart = columns[i]
                                             distance = columns[i+1]
+                                            playerID = columns[4]
                                             if i + 4 < len(columns):
                                                 if columns[i+4] in killStates:
                                                     killState = columns[i+4]
@@ -95,11 +131,21 @@ def on_key_event(e):
                                             if (killState == "you"):
                                                 killState == "You died first"
                                             recentLines.append((health, damage, bodyPart, distance, killState, playerID))
-                                        except ValueError:
-                                            recentLines.append(("Error", "Error", ""))
+                                        except (IndexError, ValueError) as e:
+                                            recentLines.append(("Error", "Error", "Error", "Error", "Error", "Error"))
+                                            print(f"Error occurred in parsing line: {line.strip()}")
                                     break
+
+                        seen = set()
+                        unique_lines = []
+                        for line in recentLines:
+                            if line not in seen:
+                                unique_lines.append(line)
+                                seen.add(line)
+                        recentLines = unique_lines
+                        recentLines = unique_lines
                         if (len(columns) > 1 and columns[1] == "attacker"):
-                            recentLines = []
+                            #recentLines = []
                             hiddenEventAmount = 0
                         if (len(columns) > 7):
                             if (columns[7] == "seconds"):
@@ -110,26 +156,26 @@ def on_key_event(e):
                 return
             
             # Get the last 10 entries and reverse them
-            lastRows = recentLines[-50:]
+            lastRows = recentLines[-45:]
             reversedLastRows = list(reversed(lastRows))
 
-            # Assign colors to each player
-            playerColorMap = {}
-            colorIndex = 0
+            # Map Colors based on id, remove mapping from ids that are no longer shown
+            currentActivePlayerIDs = set()
             for _, _, _, _, _, playerID in reversedLastRows:
+                currentActivePlayerIDs.add(playerID)
                 if playerID not in playerColorMap:
-                    if colorIndex < len(COLORS):
-                        playerColorMap[playerID] = COLORS[colorIndex]
-                        colorIndex += 1
-                    else:
-                        playerColorMap[playerID] = COLORS[0]
+                    MapPlayerIDToColors(playerID)
+            
+            playerIDsToRemove = []
+            for playerID in playerColorMap:
+                if playerID not in currentActivePlayerIDs:
+                    playerIDsToRemove.append(playerID)
 
-            print()
-            PrintLogo()
-            print()
-            print("                              Z - Refresh CombatLog")
-            print(f"   {'Health':<15} {'Damage':<15} {'Distance':<15} {'BodyPart':<15} {'Info':<15}")
-            print("="*78)
+            # Remove unused ids from the map
+            for pid in playerIDsToRemove:
+                del playerColorMap[pid]
+
+            PrintHeading()
 
             # Print table contents
             if (hiddenEventAmount > 1):
@@ -140,8 +186,9 @@ def on_key_event(e):
                 hiddenEventAmount == 0
             
             for health, damage, bodyPart, distance, killState, playerID in reversedLastRows:
-                color = playerColorMap.get(playerID)
-                square = SetTextColor("██", color)
+                playerColors = playerColorMap.get(playerID)
+                playerColor1, playerColor2 = playerColors
+                square = SetTextColor("█", playerColor1) + SetTextColor("█", playerColor2)
                 if (bodyPart == "head"):
                     bodyPart = SetTextColor(bodyPart + "           ", "\033[31m")
                 print(f"{square} {health:<15} {damage:<15} {distance:<15} {bodyPart:<15} {killState:<15}")
@@ -151,14 +198,34 @@ os.system('title RustCombatLogger')
 
 # WHITE, RED, YELLOW, GREEN, BLUE, CYAN, MAGENTA
 #COLORS = ["\033[37m", "\033[31m", "\033[33m", "\033[32m", "\033[34m", "\033[36m", "\033[35m"]
-COLORS = ["\033[37m", "\033[31m", "\033[33m", "\033[32m", "\033[34m", "\033[36m", "\033[35m"]
+COLORS = [
+    "\033[37m", 
+    "\033[31m", 
+    "\033[33m", 
+    "\033[32m", 
+    "\033[34m", 
+    "\033[36m", 
+    "\033[35m"
+    ]
+
 logIdentifyingKeywords = {"chest", "arm", "head", "leg", "hand", "generic", "stomach", "foot"}
-killStates = {"killed", "wounded", "projectile_los", "you"}
+killStates = {"killed", "wounded", "projectile_los", "projectile_los_detailed", "you"}
+
+WINDOW_WIDTH = 82
+WINDOW_HEIGHT = 60
 
 COOLDOWN_TIME = 0.5
-CURRENT_VERSION = "1.8"
+CURRENT_VERSION = "2.2"
 RCL_UPDATER = os.path.join(os.getenv('APPDATA'), 'RustCombatLogger', 'RCLUpdater_old.bat')
+SRC_PATH = os.path.join(os.getenv('APPDATA'), 'RustCombatLogger')
+
 lastPressedTime = 0
+
+hiddenEventAmount = 0
+
+playerColor1 = 0
+playerColor2 = 0
+playerColorMap = {}
 
 keyboard.hook(on_key_event)
 
@@ -168,13 +235,7 @@ os.makedirs(os.path.dirname(saveDataFile), exist_ok=True)
 
 initialSetup()
 
-print()
-PrintLogo()
-print()
-print("                              Z - Refresh CombatLog")
-print(f"   {'Health':<15} {'Damage':<15} {'Distance':<15} {'BodyPart':<15} {'Info':<15}")
-print("="*78)
-
+PrintHeading()
 
 while True:
     keyboard.wait('z') 
