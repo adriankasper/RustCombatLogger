@@ -71,6 +71,9 @@ def subtractSecondsFromDt(time_params, subtractSecond):
     )
     
     return new_time_params
+
+def replaceNonPrintableCharacters(string):
+    return string.encode('ascii', 'replace').decode('ascii')
     
 def PrintHeading():
     print("v" + CURRENT_VERSION)
@@ -84,7 +87,7 @@ def PrintHeading():
     print((" "*((WINDOW_WIDTH-30)//2)) + '\033[31m888   T88b  "Y8888P"  88888888\033[37m') 
     print()
     print((" "*((WINDOW_WIDTH-21)//2)) + "Z - Refresh CombatLog")
-    print(f"   {'Health':<15} {'Damage':<15} {'Distance':<15} {'BodyPart':<15} {'Info':<15} {'Name':<15}")
+    print(f"   {'Health':<{10}} {'Damage':<{10}} {'Distance':<{10}} {'BodyPart':<{10}} {'Info':<{20}} {'Name':<{30}}")
     print("="*WINDOW_WIDTH)
 
 def MapPlayerIDToColors(playerID):
@@ -118,7 +121,7 @@ def on_key_event(e):
     global lastPressedTime
     currentTime = time.time()
     
-    if e.name == 'z':  
+    if e.name == 'z' or e.name == 'Z':  
         if currentTime - lastPressedTime >= COOLDOWN_TIME:
             lastPressedTime = currentTime
             time.sleep(0.1)
@@ -132,7 +135,7 @@ def on_key_event(e):
                 with open(logPath, 'r', encoding='utf-8') as file:
                     for line in file:
                         columns = line.split()
-                        if (len(columns) > 1 and columns[1] == "attacker"):
+                        if (len(columns) > 1 and columns[1] == "attacker"): #This identifies the heading of a single combatlog
                             #recentLines = []
                             hiddenEventAmount = 0
                             logTime = (
@@ -142,8 +145,8 @@ def on_key_event(e):
                                 int(columns[0][11:13]), # Hour
                                 int(columns[0][14:16]), # Minute
                                 int(columns[0][17:19])  # Second
-                            )
-                        if len(columns) > 1 and columns[1] == "died:" and columns[2] == "killed" and columns[3] == "by"  in line:
+                            ) 
+                        if len(columns) > 1 and columns[1] == "died:" and columns[2] == "killed" and columns[3] == "by"  in line: #This identifies a killed message
                             playerName = ""
                             playerName = ' '.join(columns[4:-1])
                             timeKilled = (
@@ -155,7 +158,7 @@ def on_key_event(e):
                                 int(columns[0][17:19])  # Second
                             )
                             timeKilledToNameMap[timeKilled] = playerName
-                        if len(columns) > 1 and columns[1] == "player" and columns[3] == "you" and 'assets/prefabs/weapons/' in line:
+                        if len(columns) > 1 and columns[1] == "player" and columns[3] == "you" and 'assets/prefabs/' and columns[-6] == "killed" in line: # This identifies a death in combatlog
                             deathTime = subtractSecondsFromDt(logTime, float(columns[0][:-1]))
 
                             variations = [
@@ -164,13 +167,13 @@ def on_key_event(e):
                                 (deathTime[0], deathTime[1], deathTime[2], deathTime[3], deathTime[4], deathTime[5] + 1)
                             ]
 
-                            # Check if any of the variations are present in the dictionary
+                            # Check if any of the variations are present in the map
                             for variation in variations:
                                 if variation in timeKilledToNameMap:
                                     playerIdToNameMap[columns[2]] = timeKilledToNameMap[variation]
                                     break
                             
-                        if len(columns) > 1 and columns[1] == "you" and columns[3] == "player" and 'assets/prefabs/weapons/' in line:
+                        if len(columns) > 1 and columns[1] == "you" and columns[3] == "player" and 'assets/prefabs/' in line: # This identifies a hit in combatlog
                             for i, element in enumerate(columns):
                                 if element in logIdentifyingKeywords:
                                     if i + 3 < len(columns):
@@ -184,11 +187,11 @@ def on_key_event(e):
                                             playerID = columns[4]
                                             if playerID in playerIdToNameMap:
                                                 if len(playerIdToNameMap[playerID]) > 29:
-                                                    killer = playerIdToNameMap[playerID][:26] + "..."
+                                                    playerName = playerIdToNameMap[playerID][:26] + "..."
                                                 else:
-                                                    killer = playerIdToNameMap[playerID][:26]
+                                                    playerName = playerIdToNameMap[playerID][:29]
                                             else:
-                                                killer = ""
+                                                playerName = ""
                                             if i + 4 < len(columns):
                                                 if columns[i+4] in killStates:
                                                     killState = columns[i+4]
@@ -198,7 +201,7 @@ def on_key_event(e):
                                                 killState = "wounded"
                                             if (killState == "you"):
                                                 killState == "You died first"
-                                            recentLines.append((health, damage, bodyPart, distance, killState, playerID, killer))
+                                            recentLines.append((health, damage, bodyPart, distance, killState, playerID, playerName))
                                         except (IndexError, ValueError) as e:
                                             recentLines.append(("Error", "Error", "Error", "Error", "Error", "Error", "Error"))
                                             print(f"Error occurred in parsing line: {line.strip()}")
@@ -211,7 +214,6 @@ def on_key_event(e):
                             if line not in seen:
                                 unique_lines.append(line)
                                 seen.add(line)
-                        recentLines = unique_lines
                         recentLines = unique_lines
                         if (len(columns) > 7):
                             if (columns[7] == "seconds"):
@@ -250,14 +252,13 @@ def on_key_event(e):
             elif (hiddenEventAmount == 1):
                 print(f"+ {hiddenEventAmount} event in the last 10 seconds")
                 hiddenEventAmount == 0
-            
-            for health, damage, bodyPart, distance, killState, playerID, killer in reversedLastRows:
+            for health, damage, bodyPart, distance, killState, playerID, playerName in reversedLastRows:
                 playerColors = playerColorMap.get(playerID)
                 playerColor1, playerColor2 = playerColors
                 square = SetTextColor("█", playerColor1) + SetTextColor("█", playerColor2)
                 if (bodyPart == "head"):
-                    bodyPart = SetTextColor(bodyPart + "           ", "\033[31m")
-                print(f"{square} {health:<15} {damage:<15} {distance:<15} {bodyPart:<15} {killState:<15} {killer:<30}")
+                    bodyPart = SetTextColor(bodyPart + "      ", "\033[31m")
+                print(f"{square} {health:<{10}} {damage:<{10}} {distance:<{10}} {bodyPart:<{10}} {killState:<{20}} {replaceNonPrintableCharacters(playerName):<{30}}")
 
 # Set the console title
 os.system('title RustCombatLogger')
@@ -275,13 +276,14 @@ COLORS = [
     ]
 
 logIdentifyingKeywords = {"chest", "arm", "head", "leg", "hand", "generic", "stomach", "foot"}
-killStates = {"killed", "wounded", "projectile_los", "projectile_los_detailed", "you"}
+killStates = {"killed", "wounded", "projectile_los", "projectile_los_detailed", "you", "projectile_distance"}
 
-WINDOW_WIDTH = 113
+WINDOW_WIDTH = 98
 WINDOW_HEIGHT = 60
+COLUMN_WIDTH = WINDOW_WIDTH//6
 
-COOLDOWN_TIME = 0.5
-CURRENT_VERSION = "2.4"
+COOLDOWN_TIME = 1
+CURRENT_VERSION = "2.6"
 RCL_UPDATER = os.path.join(os.getenv('APPDATA'), 'RustCombatLogger', 'RCLUpdater_old.bat')
 SRC_PATH = os.path.join(os.getenv('APPDATA'), 'RustCombatLogger')
 
